@@ -27,7 +27,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
@@ -43,6 +45,7 @@
 
 #include "drw.h"
 #include "util.h"
+#include "status.c"
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -1412,11 +1415,43 @@ void
 run(void)
 {
 	XEvent ev;
-	/* main event loop */
-	XSync(dpy, False);
-	while (running && !XNextEvent(dpy, &ev))
-		if (handler[ev.type])
-			handler[ev.type](&ev); /* call handler */
+    const int xfd = ConnectionNumber(dpy);
+    struct pollfd pfd = { .fd = xfd, .events = POLLIN };
+    const int interval = 5000; /* milliseconds */
+    time_t last = 0;
+
+    XSync(dpy, False);
+
+	/* XEvent ev; */
+	/* /1* main event loop *1/ */
+	/* XSync(dpy, False); */
+
+	while (running) 
+	{
+		/* drain all pending X events */
+        while (XPending(dpy)) {
+            XNextEvent(dpy, &ev);
+
+            if (handler[ev.type]) {
+                (handler[ev.type])(&ev);
+			}
+        }
+
+        /* update status on interval */
+        const time_t now = time(NULL);
+
+        if (now - last >= interval / 1000) {
+            last = now;
+			get_topbar(stext, 256);
+			get_extrabar_l(estextl, 256);
+			get_extrabar_r(estextr, 256);
+            drawbars();
+        }
+
+        /* sleep until X event or timeout */
+        const int remaining = interval - (int)((time(NULL) - last) * 1000);
+        poll(&pfd, 1, remaining < 0 ? 0 : remaining);
+	}
 }
 
 void
@@ -1618,7 +1653,8 @@ setup(void)
 		scheme[i] = drw_scm_create(drw, colors[i], 3);
 	/* init bars */
 	updatebars();
-	updatestatus();
+	init_status();
+	/* updatestatus(); */
 	/* supporting window for NetWMCheck */
 	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
@@ -2057,26 +2093,26 @@ updatesizehints(Client *c)
 void
 updatestatus(void)
 {
-	char text[768];
-	if (!gettextprop(root, XA_WM_NAME, text, sizeof(text))) {
-		strcpy(stext, "dwm-"VERSION);
-		estextl[0] = '\0';
-		estextr[0] = '\0';
-	} else {
-		char *l = strchr(text, statussep);
-		if (l) {
-			*l = '\0'; l++;
-			strncpy(estextl, l, sizeof(estextl) - 1);
-		} else
-			estextl[0] = '\0';
-		char *r = strchr(estextl, statussep);
-		if (r) {
-			*r = '\0'; r++;
-			strncpy(estextr, r, sizeof(estextr) - 1);
-		} else
-			estextr[0] = '\0';
-		strncpy(stext, text, sizeof(stext) - 1);
-	}
+	/* char text[768]; */
+	/* if (!gettextprop(root, XA_WM_NAME, text, sizeof(text))) { */
+	/* 	strcpy(stext, "dwm-"VERSION); */
+	/* 	estextl[0] = '\0'; */
+	/* 	estextr[0] = '\0'; */
+	/* } else { */
+	/* 	char *l = strchr(text, statussep); */
+	/* 	if (l) { */
+	/* 		*l = '\0'; l++; */
+	/* 		strncpy(estextl, l, sizeof(estextl) - 1); */
+	/* 	} else */
+	/* 		estextl[0] = '\0'; */
+	/* 	char *r = strchr(estextl, statussep); */
+	/* 	if (r) { */
+	/* 		*r = '\0'; r++; */
+	/* 		strncpy(estextr, r, sizeof(estextr) - 1); */
+	/* 	} else */
+	/* 		estextr[0] = '\0'; */
+	/* 	strncpy(stext, text, sizeof(stext) - 1); */
+	/* } */
 	drawbar(selmon);
 }
 
