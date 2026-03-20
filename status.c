@@ -3,7 +3,6 @@
 #include <fcntl.h>
 #include <glob.h>
 #include <linux/wireless.h>
-/* #include <stdarg.h> */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,7 +53,7 @@ static BatteryPaths batteries[MAX_BATTERIES];
  * Helpers
  * ===================================================================== */
 
-static void combine_path(char *buf, size_t bufsz, const char *path,
+static void combine_path(char *buf, const size_t bufsz, const char *path,
                          const char *filename) {
   snprintf(buf, bufsz, "%s/%s", path, filename);
 }
@@ -63,34 +62,58 @@ static int path_exists(const char *path) { return access(path, F_OK) == 0; }
 
 static long read_number_file(const char *path) {
   FILE *f = fopen(path, "r");
-  if (!f)
+
+  if (!f) {
     return -1;
+  }
 
   char buf[32];
   size_t n = fread(buf, 1, sizeof(buf) - 1, f);
   fclose(f);
 
-  if (n == 0)
+  if (n == 0) {
     return -1;
+  }
+
   buf[n] = '\0';
   return strtol(buf, NULL, 10);
 }
 
-static void execscript(char *buf, size_t bufsz, const char *cmd) {
+static void write_file(const char *path, const char *buf, const size_t bufsz) {
+  if (buf[0] == '\0') {
+    return;
+  }
+
+  FILE *f = fopen(path, "w");
+
+  if (!f) {
+    return;
+  }
+
+  fwrite(buf, 1, bufsz, f);
+  fclose(f);
+}
+
+static void execscript(char *buf, const size_t bufsz, const char *cmd) {
   buf[0] = '\0';
   FILE *pipe = popen(cmd, "r");
-  if (!pipe)
+
+  if (!pipe) {
     return;
+  }
 
   char tmp[2048];
   size_t pos = 0;
+
   while (fgets(tmp, sizeof(tmp), pipe) != NULL) {
-    size_t len = strlen(tmp);
+    const size_t len = strlen(tmp);
+
     if (pos + len < bufsz - 1) {
       memcpy(buf + pos, tmp, len);
       pos += len;
     }
   }
+
   buf[pos] = '\0';
   pclose(pipe);
 }
@@ -99,11 +122,13 @@ static void execscript(char *buf, size_t bufsz, const char *cmd) {
  * Load
  * ===================================================================== */
 
-static void print_loadavg(char *buf, size_t bufsz) {
+static void print_loadavg(char *buf, const size_t bufsz) {
   buf[0] = '\0';
   FILE *f = fopen(load_path, "r");
-  if (!f)
+
+  if (!f) {
     return;
+  }
 
   double l1, l5, l15;
   char procs[32];
@@ -129,16 +154,20 @@ static void get_freq_paths(void) {
       ++freq_path_count;
     }
   }
+
   globfree(&glob_result);
 }
 
 static double print_cpu_freq(void) {
-  if (freq_path_count == 0)
+  if (freq_path_count == 0) {
     return 0.0;
+  }
 
   double sum = 0.0;
-  for (int i = 0; i < freq_path_count; ++i)
+
+  for (int i = 0; i < freq_path_count; ++i) {
     sum += read_number_file(freq_paths[i]);
+  }
 
   return (sum / freq_path_count) / 1e6;
 }
@@ -147,11 +176,13 @@ static double print_cpu_freq(void) {
  * RAM
  * ===================================================================== */
 
-static void print_mem(char *buf, size_t bufsz) {
+static void print_mem(char *buf, const size_t bufsz) {
   buf[0] = '\0';
   FILE *f = fopen(mem_path, "r");
-  if (!f)
+
+  if (!f) {
     return;
+  }
 
   int found = 0;
   long total = 0, free_ = 0, buffers = 0, cached = 0, sreclaim = 0, shmem = 0;
@@ -191,9 +222,12 @@ static void print_mem(char *buf, size_t bufsz) {
       }
       break;
     }
-    if (found == 6)
+
+    if (found == 6) {
       break;
+    }
   }
+
   fclose(f);
 
   const long avail = free_ + buffers + cached + sreclaim - shmem;
@@ -206,29 +240,63 @@ static void print_mem(char *buf, size_t bufsz) {
  * Brightness
  * ===================================================================== */
 
-static void get_brightness_dir(char *buf, size_t bufsz) {
-  buf[0] = '\0';
+static void get_brightness_dir(void) {
+  char buf[256] = {0};
   DIR *d = opendir("/sys/class/backlight");
-  if (!d)
+
+  if (!d) {
     return;
+  }
 
   struct dirent *e = readdir(d);
-  while (e && e->d_name[0] == '.')
-    e = readdir(d);
 
-  if (e)
-    snprintf(buf, bufsz, "/sys/class/backlight/%s", e->d_name);
+  while (e && e->d_name[0] == '.') {
+    e = readdir(d);
+  }
+
+  if (e) {
+    snprintf(buf, 256, "/sys/class/backlight/%s", e->d_name);
+  }
 
   closedir(d);
+  combine_path(max_bright_path, sizeof(max_bright_path), buf, "max_brightness");
+  combine_path(value_bright_path, sizeof(value_bright_path), buf, "brightness");
+}
+
+void setbrightness(const int percent) {
+  const long max = read_number_file(max_bright_path);
+
+  if (max <= 0) {
+    return;
+  }
+
+  const long cur = read_number_file(value_bright_path);
+
+  const int max_percent = 100;
+  const int step = (max * percent) / max_percent;
+  long next = cur + step;
+
+  if (next < 1) {
+    next = 1;
+  } else if (next > max) {
+    next = max;
+  }
+
+  char buf[32];
+  const int n = snprintf(buf, sizeof(buf), "%ld", next);
+  write_file(value_bright_path, buf, n);
 }
 
 static int print_brightness(void) {
-  if (max_bright_path[0] == '\0' || value_bright_path[0] == '\0')
+  if (max_bright_path[0] == '\0' || value_bright_path[0] == '\0') {
     return 0;
+  }
 
   const long max = read_number_file(max_bright_path);
-  if (max <= 0)
+
+  if (max <= 0) {
     return 0;
+  }
 
   const long cur = read_number_file(value_bright_path);
   return (int)((cur * 100) / max);
@@ -238,7 +306,7 @@ static int print_brightness(void) {
  * DateTime
  * ===================================================================== */
 
-static void print_datetime(char *buf, size_t bufsz) {
+static void print_datetime(char *buf, const size_t bufsz) {
   time_t t = time(NULL);
   struct tm tm;
   localtime_r(&t, &tm);
@@ -249,11 +317,13 @@ static void print_datetime(char *buf, size_t bufsz) {
  * Wi-Fi
  * ===================================================================== */
 
-static void getSSID(char *buf, size_t bufsz, const char *iface_name) {
+static void getSSID(char *buf, const size_t bufsz, const char *iface_name) {
   buf[0] = '\0';
-  int sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock < 0)
+  const int sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+  if (sock < 0) {
     return;
+  }
 
   struct iwreq req;
   memset(&req, 0, sizeof(req));
@@ -269,6 +339,7 @@ static void getSSID(char *buf, size_t bufsz, const char *iface_name) {
     close(sock);
     return;
   }
+
   close(sock);
   snprintf(buf, bufsz, "%.*s", (int)req.u.essid.length, ssid);
 }
@@ -276,12 +347,16 @@ static void getSSID(char *buf, size_t bufsz, const char *iface_name) {
 static void detect_wifi_iface(char *buf, size_t bufsz) {
   buf[0] = '\0';
   DIR *d = opendir(net_path);
-  if (!d)
+
+  if (!d) {
     return;
+  }
 
   struct dirent *e;
+
   while ((e = readdir(d))) {
     const char *n = e->d_name;
+
     if (!strncmp(n, "wlan", 4) || !strncmp(n, "wlp", 3) ||
         !strncmp(n, "wifi", 4)) {
       strncpy(buf, n, bufsz - 1);
@@ -289,6 +364,7 @@ static void detect_wifi_iface(char *buf, size_t bufsz) {
       break;
     }
   }
+
   closedir(d);
 }
 
@@ -299,19 +375,25 @@ static void detect_wifi_iface(char *buf, size_t bufsz) {
 static void get_temp_path(void) {
   temp_path[0] = '\0';
   DIR *d = opendir(thermal_path);
-  if (!d)
+
+  if (!d) {
     return;
+  }
 
   struct dirent *e;
+
   while ((e = readdir(d))) {
-    if (strncmp(e->d_name, "thermal_zone", 12) != 0)
+    if (strncmp(e->d_name, "thermal_zone", 12) != 0) {
       continue;
+    }
 
     char path[256];
     snprintf(path, sizeof(path), "/sys/class/thermal/%s/type", e->d_name);
     FILE *f = fopen(path, "r");
-    if (!f)
+
+    if (!f) {
       continue;
+    }
 
     char buf[32];
     fgets(buf, sizeof(buf), f);
@@ -324,6 +406,7 @@ static void get_temp_path(void) {
       break;
     }
   }
+
   closedir(d);
 }
 
@@ -349,6 +432,7 @@ static long battery_get_capacity(const BatteryPaths *b) {
       const long now = read_number_file(b->cap_path1);
       return now * 100 / full;
     }
+
     return 0;
   }
   }
@@ -360,6 +444,7 @@ static float battery_get_usage(const BatteryPaths *b) {
     const long power = read_number_file(b->usage_path1);
     return power > 0 ? power / 1e6f : 0.0f;
   }
+
   const long cur = read_number_file(b->usage_path1);
   const long volt = read_number_file(b->usage_path2);
   return (cur * volt) / 1e12f;
@@ -367,30 +452,36 @@ static float battery_get_usage(const BatteryPaths *b) {
 
 static void detect_batteries(void) {
   DIR *d = opendir("/sys/class/power_supply");
-  if (!d)
+
+  if (!d) {
     return;
+  }
 
   battery_count = 0;
   struct dirent *e;
 
   while ((e = readdir(d)) && battery_count < MAX_BATTERIES) {
-    if (e->d_name[0] == '.')
+    if (e->d_name[0] == '.') {
       continue;
+    }
 
     char type_path[256];
     snprintf(type_path, sizeof(type_path), "/sys/class/power_supply/%s/type",
              e->d_name);
 
     FILE *f = fopen(type_path, "r");
-    if (!f)
+
+    if (!f) {
       continue;
+    }
 
     char buf[32];
     fgets(buf, sizeof(buf), f);
     fclose(f);
 
-    if (strncmp(buf, "Battery", 7) != 0)
+    if (strncmp(buf, "Battery", 7) != 0) {
       continue;
+    }
 
     BatteryPaths *b = &batteries[battery_count];
     memset(b, 0, sizeof(*b));
@@ -437,25 +528,31 @@ static void detect_batteries(void) {
       strncpy(b->usage_path2, voltage_now, sizeof(b->usage_path2) - 1);
     }
 
-    if (!strncmp(e->d_name, "BAT", 3))
+    if (!strncmp(e->d_name, "BAT", 3)) {
       snprintf(b->name, sizeof(b->name), "B%s", e->d_name + 3);
-    else
+    } else {
       strncpy(b->name, e->d_name, sizeof(b->name) - 1);
+    }
 
     ++battery_count;
   }
+
   closedir(d);
 }
 
 /* read_battery: replaces std::tuple return with output params */
-static void read_battery(char *buf, size_t bufsz, int *charging,
+static void read_battery(char *buf, const size_t bufsz, int *charging,
                          const BatteryPaths *b) {
   *charging = 0;
   FILE *f = fopen(b->status, "r");
+
   if (f) {
     char sbuf[32];
-    if (fgets(sbuf, sizeof(sbuf), f))
+
+    if (fgets(sbuf, sizeof(sbuf), f)) {
       *charging = !strncmp(sbuf, "Charging", 8);
+    }
+
     fclose(f);
   }
 
@@ -464,7 +561,7 @@ static void read_battery(char *buf, size_t bufsz, int *charging,
   snprintf(buf, bufsz, "%s: %ld%% (%0.2f W) ", b->name, capacity, usage);
 }
 
-static void print_battery_infos(char *buf, size_t bufsz) {
+static void print_battery_infos(char *buf, const size_t bufsz) {
   buf[0] = '\0';
   int charging = 0;
   size_t pos = 0;
@@ -473,10 +570,13 @@ static void print_battery_infos(char *buf, size_t bufsz) {
     char batt_data[128];
     int bat_ch = 0;
     read_battery(batt_data, sizeof(batt_data), &bat_ch, &batteries[i]);
-    if (bat_ch)
+
+    if (bat_ch) {
       charging = 1;
+    }
 
     size_t len = strlen(batt_data);
+
     if (pos + len < bufsz - 1) {
       memcpy(buf + pos, batt_data, len);
       pos += len;
@@ -487,6 +587,7 @@ static void print_battery_infos(char *buf, size_t bufsz) {
     memcpy(buf + pos, "CHRG ", 5);
     pos += 5;
   }
+
   buf[pos] = '\0';
 
   char tmp[32];
@@ -501,24 +602,15 @@ static void print_battery_infos(char *buf, size_t bufsz) {
  * Loop
  * ===================================================================== */
 
-void init_status() {
+void init_status(void) {
   detect_wifi_iface(iface, sizeof(iface));
-
-  {
-    char bright_dir[256];
-    get_brightness_dir(bright_dir, sizeof(bright_dir));
-    combine_path(max_bright_path, sizeof(max_bright_path), bright_dir,
-                 "max_brightness");
-    combine_path(value_bright_path, sizeof(value_bright_path), bright_dir,
-                 "brightness");
-  }
-
+  get_brightness_dir();
   get_temp_path();
   detect_batteries();
   get_freq_paths();
 }
 
-void get_topbar(char *buf, size_t bufsz) {
+void get_topbar(char *buf, const size_t bufsz) {
   char date[64] = {0};
   char kbmap[32] = {0};
   char mem[64] = {0};
@@ -543,12 +635,12 @@ void get_topbar(char *buf, size_t bufsz) {
   snprintf(buf, bufsz, "| %s | %s | RAM: %s | %s |", wifi, kbmap, mem, date);
 }
 
-void get_extrabar_l(char *buf, size_t bufsz) {
+void get_extrabar_l(char *buf, const size_t bufsz) {
   const int bright = print_brightness();
   snprintf(buf, bufsz, "| Bright: %d%% |", bright);
 }
 
-void get_extrabar_r(char *buf, size_t bufsz) {
+void get_extrabar_r(char *buf, const size_t bufsz) {
   const double cpu_freq = print_cpu_freq();
   char load[64] = {0};
   char batt[256] = {0};
@@ -557,76 +649,3 @@ void get_extrabar_r(char *buf, size_t bufsz) {
   print_battery_infos(batt, sizeof(batt));
   snprintf(buf, bufsz, "| %0.2f GHz | %s | %s |", cpu_freq, load, batt);
 }
-
-/* int main(void) */
-/* { */
-/*     if (!(dpy = XOpenDisplay(NULL))) */
-/*     { */
-/*         fprintf(stderr, "dwmstatus: cannot open display.\n"); */
-/*         return 1; */
-/*     } */
-
-/*     int bright = 0; */
-/*     double cpu_freq = 0.0; */
-/*     char load[64] = {0}; */
-/*     char mem[64] = {0}; */
-/*     char date[64] = {0}; */
-/*     char batt[256] = {0}; */
-/*     char kbmap[32] = {0}; */
-/*     char wifi[64] = {0}; */
-/*     char ssid[64] = {0}; */
-/*     char status[512] = {0}; */
-
-/*     long counter = 0; */
-
-/*     while (1) */
-/*     { */
-/*         ++counter; */
-
-/*         if (counter >= 10) */
-/*         { */
-/*             counter = 0; */
-/*             strncpy(wifi, "NC", sizeof(wifi) - 1); */
-
-/*             if (iface[0] != '\0') */
-/*             { */
-/*                 getSSID(ssid, sizeof(ssid), iface); */
-/*                 if (ssid[0] != '\0') */
-/*                     strncpy(wifi, ssid, sizeof(wifi) - 1); */
-/*             } */
-
-/*             execscript( */
-/*                 kbmap, */
-/*                 sizeof(kbmap), */
-/*                 "setxkbmap -query | awk '/^layout/ {printf \"%s\", $2}'"); */
-/*             cpu_freq = print_cpu_freq(); */
-/*         } */
-
-/*         print_loadavg(load, sizeof(load)); */
-/*         print_mem(mem, sizeof(mem)); */
-/*         print_datetime(date, sizeof(date)); */
-/*         bright = print_brightness(); */
-/*         print_battery_infos(batt, sizeof(batt)); */
-
-/*         snprintf( */
-/*             status, */
-/*             sizeof(status), */
-/*             "| %s | %s | RAM: %s | %s |;| Bright: %d%% |;| %0.2f GHz | %s |
- * %s |", */
-/*             wifi, */
-/*             kbmap, */
-/*             mem, */
-/*             date, */
-/*             bright, */
-/*             cpu_freq, */
-/*             load, */
-/*             batt); */
-
-/*         XStoreName(dpy, DefaultRootWindow(dpy), status); */
-/*         XSync(dpy, False); */
-/*         sleep(1); */
-/*     } */
-
-/*     XCloseDisplay(dpy); */
-/*     return 0; */
-/* } */

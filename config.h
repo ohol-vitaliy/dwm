@@ -68,14 +68,14 @@ static const char browser_cmd[] = "firefox";
 static const char lang_us_cmd[] = "setxkbmap us && echo 'lang: us' | dzen2 -p 1 -title-name notif";
 static const char lang_ua_cmd[] = "setxkbmap ua && echo 'lang: ua' | dzen2 -p 1 -title-name notif";
 static const char lang_ru_cmd[] = "setxkbmap ru && echo 'lang: ru' | dzen2 -p 1 -title-name notif";
-static const char bright_up_cmd[] = "_bright up | dzen2 -p 1 -title-name notif";
-static const char bright_down_cmd[] = "_bright down | dzen2 -p 1 -title-name notif";
+// static const char bright_up_cmd[] = "_bright up | dzen2 -p 1 -title-name notif";
+// static const char bright_down_cmd[] = "_bright down | dzen2 -p 1 -title-name notif";
 // static const char vol_mute_cmd[] = "pulsemixer --toggle-mute && bash /usr/bin/_volume | dzen2 -p 1 -title-name notif";
 // static const char vol_up_cmd[] = "pulsemixer --change-volume +2 && bash /usr/bin/_volume | dzen2 -p 1 -title-name notif";
 // static const char vol_down_cmd[] = "pulsemixer --change-volume -2 && bash /usr/bin/_volume | dzen2 -p 1 -title-name notif";
-static const char vol_mute_cmd[] = "_volume toggle && bash _volume | dzen2 -p 1 -title-name notif";
-static const char vol_up_cmd[] = "_volume up && bash _volume | dzen2 -p 1 -title-name notif";
-static const char vol_down_cmd[] = "_volume down && bash _volume | dzen2 -p 1 -title-name notif";
+// static const char vol_mute_cmd[] = "_volume toggle && bash _volume | dzen2 -p 1 -title-name notif";
+// static const char vol_up_cmd[] = "_volume up && bash _volume | dzen2 -p 1 -title-name notif";
+// static const char vol_down_cmd[] = "_volume down && bash _volume | dzen2 -p 1 -title-name notif";
 
 
 static const Key keys[] = {
@@ -90,16 +90,20 @@ static const Key keys[] = {
 	{ ControlMask,                  XK_1,      spawn,          SHCMD(lang_us_cmd) },
 	{ ControlMask,                  XK_2,      spawn,          SHCMD(lang_ua_cmd) },
 	{ ControlMask,                  XK_3,      spawn,          SHCMD(lang_ru_cmd) },
-	{ 0,             XF86XK_MonBrightnessUp,   spawn,          SHCMD(bright_up_cmd) },
-	{ 0,             XF86XK_MonBrightnessDown, spawn,          SHCMD(bright_down_cmd) },
-	{ Mod4Mask,                     XK_9,      spawn,          SHCMD(bright_up_cmd) },
-	{ Mod4Mask,                     XK_8,      spawn,          SHCMD(bright_down_cmd) },
-	{ Mod4Mask,                     XK_7,      spawn,          SHCMD(vol_mute_cmd) },
-	{ Mod4Mask,                     XK_6,      spawn,          SHCMD(vol_up_cmd) },
-	{ Mod4Mask,                     XK_5,      spawn,          SHCMD(vol_down_cmd) },
-	{ 0,             XF86XK_AudioMute,         spawn,          SHCMD(vol_mute_cmd) },
-	{ 0,             XF86XK_AudioRaiseVolume,  spawn,          SHCMD(vol_up_cmd) },
-	{ 0,             XF86XK_AudioLowerVolume,  spawn,          SHCMD(vol_down_cmd) },
+	// { 0,             XF86XK_MonBrightnessUp,   spawn,          SHCMD(bright_up_cmd) },
+	// { 0,             XF86XK_MonBrightnessDown, spawn,          SHCMD(bright_down_cmd) },
+	// { Mod4Mask,                     XK_9,      spawn,          SHCMD(bright_up_cmd) },
+	// { Mod4Mask,                     XK_8,      spawn,          SHCMD(bright_down_cmd) },
+	{ 0,             XF86XK_MonBrightnessUp,   brightup,       {0} },
+	{ 0,             XF86XK_MonBrightnessDown, brightdown,     {0} },
+	{ Mod4Mask,                     XK_9,      brightup,       {0} },
+	{ Mod4Mask,                     XK_8,      brightdown,     {0} },
+	// { Mod4Mask,                     XK_7,      spawn,          SHCMD(vol_mute_cmd) },
+	// { Mod4Mask,                     XK_6,      spawn,          SHCMD(vol_up_cmd) },
+	// { Mod4Mask,                     XK_5,      spawn,          SHCMD(vol_down_cmd) },
+	// { 0,             XF86XK_AudioMute,         spawn,          SHCMD(vol_mute_cmd) },
+	// { 0,             XF86XK_AudioRaiseVolume,  spawn,          SHCMD(vol_up_cmd) },
+	// { 0,             XF86XK_AudioLowerVolume,  spawn,          SHCMD(vol_down_cmd) },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
 	{ MODKEY|ShiftMask,             XK_b,      toggleextrabar, {0} },
 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
