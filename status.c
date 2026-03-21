@@ -263,7 +263,7 @@ static void get_brightness_dir(void) {
   combine_path(value_bright_path, sizeof(value_bright_path), buf, "brightness");
 }
 
-void setbrightness(const int percent) {
+void changebrightness(const int percent) {
   const long max = read_number_file(max_bright_path);
 
   if (max <= 0) {
@@ -284,6 +284,27 @@ void setbrightness(const int percent) {
 
   char buf[32];
   const int n = snprintf(buf, sizeof(buf), "%ld", next);
+  write_file(value_bright_path, buf, n);
+}
+
+void setbrightness(const int percent) {
+  const long max = read_number_file(max_bright_path);
+
+  if (max <= 0) {
+    return;
+  }
+
+  const int max_percent = 100;
+  int next = (max * percent) / max_percent;
+
+  if (next < 1) {
+    next = 1;
+  } else if (next > max) {
+    next = max;
+  }
+
+  char buf[32];
+  const int n = snprintf(buf, sizeof(buf), "%d", next);
   write_file(value_bright_path, buf, n);
 }
 

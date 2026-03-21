@@ -1656,6 +1656,7 @@ setup(void)
 	/* init bars */
 	updatebars();
 	init_status();
+	setbrightness(80);
 	/* updatestatus(); */
 	/* supporting window for NetWMCheck */
 	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
@@ -2249,11 +2250,11 @@ zoom(const Arg *arg)
 }
 
 void brightup(const Arg *arg) {
-	setbrightness(+5);
+	changebrightness(+5);
 }
 
 void brightdown(const Arg *arg) {
-	setbrightness(-5);
+	changebrightness(-5);
 }
 
 int
