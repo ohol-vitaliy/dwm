@@ -39,6 +39,7 @@ static const Rule rules[] = {
 	{ "easyeda"     , NULL     , NULL                 , 1 << 2    , 0          , -1 }       ,
 	{ "kicad"       , NULL     , NULL                 , 1 << 2    , 0          , -1 }       ,
 	{ NULL          , NULL     , "Picture-in-Picture" , ~0        , 1          , -1 }       ,
+	{ "mpv"         , "cams"   , NULL                 , 0         , 1          , -1 }       ,
 };
 static const Layout layouts[] = {
 	/* symbol     arrange function */
